@@ -129,7 +129,7 @@ void QueryTreeNode::PrintNode(){
 	clog << "OUTPUT PIPE "<< outPipeID << endl;
 	clog << "OUTPUT SCHEMA: " << endl;
 	schema->Print();
-	clog << "************" << endl;
+	clog << endl << "************" << endl;
 //      PrintCNF();
       break;
 
@@ -139,6 +139,7 @@ void QueryTreeNode::PrintNode(){
 	clog << "OUTPUT PIPE " << outPipeID << endl;
 	clog << "OUTPUT SCHEMA: " << endl;
 	schema->Print();
+	clog << endl << "CNF: " << endl;
 	PrintCNF();
       break;
 
@@ -147,7 +148,8 @@ void QueryTreeNode::PrintNode(){
 	clog << "OUTPUT PIPE " << outPipeID << endl;
 	clog << "OUTPUT SCHEMA: " << endl;
 	schema->Print();
-	//PrintFunction();
+	clog << endl << "FUNCTION: " << endl;
+	PrintFunction();
       break;
 
     case DISTINCT:
@@ -155,14 +157,19 @@ void QueryTreeNode::PrintNode(){
 	clog << "OUTPUT PIPE " << outPipeID << endl;
 	clog << "OUTPUT SCHEMA: " << endl;	
 	schema->Print();
+	clog << endl << "FUNCTION: " << endl;
+	PrintFunction();
 	break;
 
     case GROUP_BY:
 	clog << "LEFT INPUT PIPE " << lChildPipeID << endl;
 	clog << "OUTPUT PIPE " << outPipeID << endl;
-	clog << "GROUPING ON " << endl;
+	clog << "OUTPUT SCHEMA: " << endl;	
+	schema->Print();
+	clog << endl << "GROUPING ON " << endl;
 	order->Print();
 	clog << endl << "FUNCTION " << endl;
+	PrintFunction();
       break;
 
   } // end switch type
@@ -247,6 +254,10 @@ void QueryTreeNode::PrintCNF(){
 
 }
 
+void QueryTreeNode::PrintFunction(){
+	func->Print();
+}
+
 
 /*
 GENERATOR FUNCTIONS (SCHEMA & FUNCTION & GROUP BY)
@@ -262,19 +273,11 @@ void QueryTreeNode::GenerateSchema(){
 }
 
 void QueryTreeNode::GenerateFunction(){
+	//clog << "Attempting to grow parse tree " << endl;
+	func = new Function();
+	//clog << "Main thing I'm looking for is at: " << funcOp->leftOperand->value << endl;
 
-	if(type == SUM){
-		clog << "Attempting to grow parse tree " << endl;
-		func = new Function();
-		clog << "Main thing I'm looking for is at: " << funcOp->leftOperand->value << endl;
-
-		func->GrowFromParseTree(funcOp, *schema);
-	}
-	else{ //Only other type that should use this is Group By
-
-		
-
-	}
+	func->GrowFromParseTree(funcOp, *schema);
 }
 
 void QueryTreeNode::GenerateOM(int numAtts, vector<int> whichAtts, vector<int> whichTypes){

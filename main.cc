@@ -2,6 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <assert.h>
+#include <string.h>
 
 #include "QueryTree.h"
 #include "ParseTree.h"
@@ -32,11 +33,11 @@ void GetTables(vector<string> &relations){
 
     if (list->aliasAs){
       relations.push_back(list->aliasAs);
-	clog << "Pushed back " << list->aliasAs << endl;
+	//clog << "Pushed back " << list->aliasAs << endl;
     }
     else {
       relations.push_back(list->tableName);
-	clog << "Pushed back " << list->tableName << endl;
+	//clog << "Pushed back " << list->tableName << endl;
     }
 
     list = list->next;
@@ -46,29 +47,33 @@ void GetTables(vector<string> &relations){
 } // end GetTables
 
 
-void GetJoinsAndSelects(vector<AndList*> &joins, vector<AndList*> &selects, vector<AndList*> &joinDepSel, Statistics s){
+void GetJoinsAndSelects(vector<AndList> &joins, vector<AndList> &selects, vector<AndList> &joinDepSel, Statistics s){
 
-  struct AndList *curAnd = boolean;
+ // struct AndList curAnd = *boolean;
   struct OrList *curOr;
 
 
-  while (curAnd){
+  while (boolean != 0){
 
-    curOr = curAnd->left;
+    curOr = boolean->left;
 
     if (curOr && curOr->left->code == EQUALS && curOr->left->left->code == NAME
 	&& curOr->left->right->code == NAME){
-	joins.push_back(curAnd);
+	AndList newAnd = *boolean;
+	newAnd.rightAnd = 0;
+	joins.push_back(newAnd);
     }
     else {
-	curOr = curAnd->left;
+	curOr = boolean->left;
 	if(0 == curOr->left){ //Either a (x.y = z.y) join, handled above, or a (something = blah), can only be on one table. No worries
-		selects.push_back(curAnd);
+		AndList newAnd = *boolean;
+		newAnd.rightAnd = 0;
+		selects.push_back(newAnd);
 	}
 	else{
 		//Otherwise, this might be a (a.b = c OR d.e = f) situation
 		vector<string> involvedTables;
-		cout << "Potential multiple tables involved!" << endl;
+		//cout << "Potential multiple tables involved!" << endl;
 		
 		while(curOr != 0){
 			Operand *op = curOr->left->left;
@@ -77,7 +82,7 @@ void GetJoinsAndSelects(vector<AndList*> &joins, vector<AndList*> &selects, vect
 			}
 			string rel;
 			s.ParseRelation(op, rel);
-			cout << "Parsed out relation " << rel << endl;
+			//cout << "Parsed out relation " << rel << endl;
 			if(involvedTables.size() == 0){
 				involvedTables.push_back(rel);
 			}
@@ -89,19 +94,34 @@ void GetJoinsAndSelects(vector<AndList*> &joins, vector<AndList*> &selects, vect
 		}
 
 		if(involvedTables.size() > 1){
-			joinDepSel.push_back(curAnd);
+			AndList newAnd = *boolean;
+			newAnd.rightAnd = 0;
+			joinDepSel.push_back(newAnd);
 		}
 		else{
-			selects.push_back(curAnd);
+			AndList newAnd = *boolean;
+			newAnd.rightAnd = 0;
+			selects.push_back(newAnd);
 		}		
 	}	
     }
 
-    curAnd = curAnd->rightAnd;
+    boolean = boolean->rightAnd;
 
   } // end while curAnd
 
 } // end GetJoinsAndSelect
+
+
+void optimizeJoinOrder(vector<AndList*> joins, Statistics s){
+
+	vector<AndList> newOrder;
+	//What is an optimized join order?
+	// For now, we're going to say it's the joining of the smallest tables first, followed by including the next smallest table possible to join
+
+	
+
+}
 
 
 int main () {
@@ -119,9 +139,9 @@ int main () {
 
 	vector<string> relations;
 
-	vector<AndList*> joins;
-	vector<AndList*> selects;
-	vector<AndList*> joinDepSels;
+	vector<AndList> joins;
+	vector<AndList> selects;
+	vector<AndList> joinDepSels;
 	string projectStart; //I use this later, sorta hacky.
 
 	yyparse();
@@ -131,9 +151,9 @@ int main () {
 
 	GetJoinsAndSelects(joins, selects, joinDepSels, s);
 
-	clog << "Number of selects: " << selects.size() << endl;
+	clog << endl << "Number of selects: " << selects.size() << endl;
 	clog << "Number of joins: " << joins.size() << endl;
-	clog << "Number of join dependent selects: " << joinDepSels.size() << endl;
+	clog << "Number of join dependent selects: " << joinDepSels.size() << endl << endl;
 	
 	//assert(0==1); //USED TO TEST THE ABOVE 3 STATEMENTS!
 	
@@ -158,11 +178,11 @@ int main () {
 	while(iterTable != 0){
 		if(iterTable->aliasAs != 0){
 			leafs.insert(std::pair<string,QueryTreeNode*>(iterTable->aliasAs, new QueryTreeNode()));
-			clog << "Node generated for " << iterTable->aliasAs << endl;
+	//		clog << "Node generated for " << iterTable->aliasAs << endl;
 		}
 		else{
 			leafs.insert(std::pair<string,QueryTreeNode*>(iterTable->tableName, new QueryTreeNode()));
-			clog << "Node generated for " << iterTable->tableName << endl;
+	//		clog << "Node generated for " << iterTable->tableName << endl;
 		}
 		//Here we need to insert code that makes insert into a "Select File" type node
 		//and deals with the relevant information
@@ -182,26 +202,27 @@ int main () {
 		//insert->PrintNode();
 		iterTable = iterTable->next;	
 	}
-	//clog << "Done generating SF Nodes" << endl;	
+//	clog << "Done generating SF Nodes" << endl;	
 
 	//Code above is not guaranteed to work!
 	//Standard debugging thingies apply
 	
-	AndList *selectIter;
+	AndList selectIter;
 	string table;
 	string attribute;
 	//After that, we can iterate over the selects
 	//clog << "Generating S nodes" << endl;
 	for(unsigned i = 0; i < selects.size(); i++){
 		selectIter = selects[i];
-		if(selectIter->left->left->left->code == NAME){
-			s.ParseRelation(selectIter->left->left->left, table);
+	//	cout << "Is the problem before this?" << endl;
+		if(selectIter.left->left->left->code == NAME){
+			s.ParseRelation(selectIter.left->left->left, table);
 		}
 		else{
-			s.ParseRelation(selectIter->left->left->right, table);
+			s.ParseRelation(selectIter.left->left->right, table);
 		}
 
-		clog << "Select on " << table << endl;
+	//	clog << "Select on " << table << endl;
 		
 		traverse = leafs[table]; //Get the root node (Select File)
 		projectStart = table;
@@ -209,8 +230,8 @@ int main () {
 			traverse = traverse->parent;
 		}
 		insert = new QueryTreeNode();
-		//clog << "Select node on " << attribute << " generated." << endl;
-		//clog << "Selection was on " << selectIter->left->left->left->value << "." << endl;
+	//	clog << "Select node on " << attribute << " generated." << endl;
+	//	clog << "Selection was on " << selectIter.left->left->left->value << "." << endl;
 		/*
 		 insert customization here
 		 Traverse's new parent is insert
@@ -225,15 +246,21 @@ int main () {
 		insert->schema = traverse->schema; //Schemas are the same throughout selects, only rows change
 		insert->type = SELECTP;
 		//clog << "Schema is inserted." << endl;
-		insert->cnf = selects[i]; //Need to implement CreateCNF in QueryTreeNode
+		insert->cnf = &selects[i]; //Need to implement CreateCNF in QueryTreeNode
 		insert->lChildPipeID = traverse->outPipeID;
 		insert->outPipeID = pipeID++;
+
+		//Because we made a selection, this may impact our decision on which tables to choose first for the join order
+		//So we should update the statistics object to reflect the change
+		char *statApply = strdup(table.c_str());
+		s.Apply(&selectIter, &statApply,1);
+
 		topNode = insert;
 		//clog << "CNF has been created." << endl;
 	//	insert->PrintNode();
 	}
 
-//	clog << "Done generating S Nodes" << endl;
+	//clog << "Done generating S Nodes" << endl;
 	
 	/*
 	 So at this point, we've got the initial selects and the non-initial selects out of the way.
@@ -244,10 +271,12 @@ int main () {
 	
 	//Function that optimizes join stuff here
 	
+	//optimizeJoinOrder(joins, s);
+
 	//Now we have to add the joins to the tree
 	QueryTreeNode *lTableNode;
 	QueryTreeNode *rTableNode;
-	AndList *curJoin;
+	AndList curJoin;
 	string rel1;
 	string rel2;
 	//clog << "Generating Join nodes" << endl;
@@ -258,11 +287,11 @@ int main () {
 		//AND->OR->COM->OP->VALUE
 		//So curJoin->left->left->left->value
 		// and curJoin->left->left->right->value
-		rel1 = curJoin->left->left->left->value;
-		s.ParseRelation(curJoin->left->left->left, rel1);
-		rel2 = curJoin->left->left->right->value;
-		s.ParseRelation(curJoin->left->left->right, rel2);
-		//clog << "Join on " << rel1 << " and " << rel2 << "."<<endl;
+		rel1 = "";//curJoin.left->left->left->value;
+		s.ParseRelation(curJoin.left->left->left, rel1);
+		rel2 = "";//curJoin.left->left->right->value;
+		s.ParseRelation(curJoin.left->left->right, rel2);
+		clog << "Join on " << rel1 << " and " << rel2 << "."<<endl;
 		table = rel1; //done for testing purposes. will remove later
 		
 		//So, now we can get the top nodes for each of these
@@ -275,28 +304,33 @@ int main () {
 		//Now we join! MWAHAHAHA
 
 		insert = new QueryTreeNode();
+
 		insert->type = JOIN;
 		insert->lChildPipeID = lTableNode->outPipeID;
 		insert->rChildPipeID = rTableNode->outPipeID;
 		insert->outPipeID = pipeID++;
-		insert->cnf = curJoin;
+		insert->cnf = &curJoin;
 
 		insert->left = lTableNode;
 		insert->right = rTableNode;
+
+		lTableNode->parent = insert;
+		rTableNode->parent = insert;
 
 		//clog << "Basic customization done. Now attempting to generate schema." << endl;
 		//Okay, now we have to deal with the schema
 		insert->GenerateSchema();
 
-		//clog << "Schema generated, now attemping to print the node." << endl;		
-		//insert->PrintNode();
+	//	clog << "Schema generated, now attemping to print the node." << endl;		
+	//	insert->PrintNode();
 		topNode = insert;	
 	}
 	
-	//clog << "Done generating join nodes" << endl;
+//	clog << "Done generating join nodes" << endl;
 
+	//assert(0==1);
 
-clog << "Generating Join Dependent Select nodes" << endl;
+	//clog << "Generating Join Dependent Select nodes" << endl;
 	for(unsigned i = 0; i < joinDepSels.size(); i++){
 		/*selectIter = joinDepSels[i];
 		if(selectIter->left->left->left->code == NAME){
@@ -326,12 +360,12 @@ clog << "Generating Join Dependent Select nodes" << endl;
 		*/
 		traverse->parent = insert;
 		insert->left = traverse;
-		clog << "New node is inserted." << endl;
+		//clog << "New node is inserted." << endl;
 		//Customizing select node:
 		insert->schema = traverse->schema; //Schemas are the same throughout selects, only rows change
 		insert->type = SELECTP;
-		clog << "Schema is inserted." << endl;
-		insert->cnf = joinDepSels[i]; //Need to implement CreateCNF in QueryTreeNode
+		//clog << "Schema is inserted." << endl;
+		insert->cnf = &joinDepSels[i]; //Need to implement CreateCNF in QueryTreeNode
 		insert->lChildPipeID = traverse->outPipeID;
 		insert->outPipeID = pipeID++;
 		topNode = insert;
@@ -339,10 +373,10 @@ clog << "Generating Join Dependent Select nodes" << endl;
 	//	insert->PrintNode();
 	}
 
-	clog << "Done generating Join Dependent Select Nodes" << endl;
+	//clog << "Done generating Join Dependent Select Nodes" << endl;
 
 
-	
+
 
 	if(0 != finalFunction) { //Okay, So if we have a final function, we need to throw it up there
 
@@ -353,7 +387,7 @@ clog << "Generating Join Dependent Select nodes" << endl;
 	*/
 		if(0 != distinctFunc){
 			insert = new QueryTreeNode();
-			clog << "Creating distinct node" << endl;
+			//clog << "Creating distinct node" << endl;
 			/*
 			We need to set: Type, Left, Pipe IDs, FunctionOp, Schema. Anything else? Don't think so.
 			*/
@@ -362,96 +396,101 @@ clog << "Generating Join Dependent Select nodes" << endl;
 			insert->lChildPipeID = topNode->outPipeID;
 			insert->outPipeID = pipeID++;
 			insert->schema = topNode->schema;
-
+			topNode->parent = insert;
 			topNode = insert;		
 		}
-		insert = new QueryTreeNode();
-		clog << "Creating function node" << endl;
-		/*
-		We need to set: Type, Left, Pipe IDs, FunctionOp, Schema. Anything else? Don't think so.
-		*/
-		insert->type = SUM;
-		insert->left = topNode;
-		insert->lChildPipeID = topNode->outPipeID;
-		insert->outPipeID = pipeID++;
-		insert->funcOp = finalFunction;
-		insert->schema = topNode->schema;
-		clog << "Function schema is " << endl;
-		insert->schema->Print();
-		//Now we need to generate the function
-		insert->GenerateFunction();
 
-		//Now we're done with the function
+		/**
+		Morgan:  so, you check for grouping atts is not null, and you make a group node.
+		you should already know you have a function, so put that function in the node.
+		**/
 
-		topNode = insert;
-
-		if(0 != distinctAtts){
+		if(0 == groupingAtts){
 			insert = new QueryTreeNode();
-			clog << "Creating distinct node" << endl;
-			/*
-			We need to set: Type, Left, Pipe IDs, FunctionOp, Schema. Anything else? Don't think so.
-			*/
-			insert->type = DISTINCT;
+			//clog << "Creating function node" << endl;
+			insert->type = SUM;
 			insert->left = topNode;
+			topNode->parent = insert;
 			insert->lChildPipeID = topNode->outPipeID;
 			insert->outPipeID = pipeID++;
+			insert->funcOp = finalFunction;
 			insert->schema = topNode->schema;
-
-			topNode = insert;
+			//clog << "Function schema is " << endl;
+			//insert->schema->Print();
+			//Now we need to generate the function
+			insert->GenerateFunction();
 		}
+		else{		
+			insert = new QueryTreeNode();
+			//Standard customization
+			insert->type = GROUP_BY;
+			insert->left = topNode;
+			topNode->parent = insert;
+			insert-> lChildPipeID = topNode->outPipeID;
+			insert->outPipeID = pipeID++;
+			insert->schema = topNode->schema;	
+	
+			//Group By customization
+			insert->order = new OrderMaker();	
+			/*
+					char *str_sum = "(ps_supplycost)";
+					get_cnf (str_sum, &join_sch, func);
+					func.Print ();
+					OrderMaker grp_order;
+					grp_order.numAtts = 1;
+					grp_order.whichAtts[0] = 3;
+					grp_order.whichTypes[0] = Int;
+			*/
+
+			int numAttsToGroup = 0;
+			vector<int> attsToGroup;
+			vector<int> whichType;
+
+			NameList *groupTraverse = groupingAtts;
+			while(groupTraverse){
+
+				numAttsToGroup++;
+
+				attsToGroup.push_back(insert->schema->Find(groupTraverse->name));
+				whichType.push_back(insert->schema->FindType(groupTraverse->name));
+				clog << "GROUPING ON " << groupTraverse->name << endl;
+
+				groupTraverse = groupTraverse->next;
+			}
+
+			insert->GenerateOM(numAttsToGroup, attsToGroup, whichType);
+			insert->funcOp = finalFunction;
+			insert->GenerateFunction();
+			topNode = insert;
+			clog << "Done generating Group By" << endl;
+		}
+
+		topNode = insert;
 	
 	}
 
 	//clog << "Done generating distinct and function nodes" << endl;
 
-	clog << "Generating the Group By" << endl;
-
 	//extern struct NameList *groupingAtts;
 
-	if(0 != groupingAtts){
-		
+
+
+	if(0 != distinctAtts){
 		insert = new QueryTreeNode();
-		//Standard customization
-		insert->type = GROUP_BY;
-		insert->left = topNode;
-		insert-> lChildPipeID = topNode->outPipeID;
-		insert->outPipeID = pipeID++;
-		insert->schema = topNode->schema;	
-		
-		//Group By customization
-		insert->order = new OrderMaker();	
+		clog << "Creating distinct node" << endl;
 		/*
-				char *str_sum = "(ps_supplycost)";
-				get_cnf (str_sum, &join_sch, func);
-				func.Print ();
-				OrderMaker grp_order;
-				grp_order.numAtts = 1;
-				grp_order.whichAtts[0] = 3;
-				grp_order.whichTypes[0] = Int;
+		We need to set: Type, Left, Pipe IDs, FunctionOp, Schema. Anything else? Don't think so.
 		*/
+		insert->type = DISTINCT;
+		insert->left = topNode;
+		topNode->parent = insert;
+		insert->lChildPipeID = topNode->outPipeID;
+		insert->outPipeID = pipeID++;
+		insert->schema = topNode->schema;
 
-		int numAttsToGroup = 0;
-		vector<int> attsToGroup;
-		vector<int> whichType;
-
-		NameList *groupTraverse = groupingAtts;
-		while(groupTraverse){
-
-			numAttsToGroup++;
-
-			attsToGroup.push_back(insert->schema->Find(groupTraverse->name));
-			whichType.push_back(insert->schema->FindType(groupTraverse->name));
-			clog << "GROUPING ON " << groupTraverse->name << endl;
-
-			groupTraverse = groupTraverse->next;
-		}
-
-		insert->GenerateOM(numAttsToGroup, attsToGroup, whichType);
-		
 		topNode = insert;
 	}
-
-	clog << "Done generating Group By" << endl;
+	
 
 
 	//Now we need to do the project:
@@ -463,13 +502,14 @@ clog << "Generating Join Dependent Select nodes" << endl;
 		traverse = topNode;
 		//clog << "Traverse is set to ... something " << traverse << endl;
 		//clog << "Table is " << table << endl;
-		while(traverse->parent != 0) traverse = traverse->parent; //Move traverse up to the top of the tree
+		//while(traverse->parent != 0) traverse = traverse->parent; //Move traverse up to the top of the tree
 //		clog << "Traversal finished" << endl;
 		//Create and customize our project node		
 		insert = new QueryTreeNode();
 		insert->type = PROJECT;
 	//	clog << "Customizing node" << endl;
 		insert->left = traverse;
+		traverse->parent = insert;
 		insert->lChildPipeID = traverse->outPipeID;
 		insert->outPipeID = pipeID++;
 		//insert->projectAtts = attsToSelect;
@@ -507,6 +547,7 @@ clog << "Generating Join Dependent Select nodes" << endl;
 			//clog << "After conversion, attribute is " << attribute << endl;
 			indexOfAttsToKeep.push_back(oldSchema->Find(const_cast<char*>(attribute.c_str())));
 		*/
+			//clog << "*************Looking for attribute " << attribute << endl;
 			indexOfAttsToKeep.push_back(oldSchema->Find(const_cast<char*>(attribute.c_str())));
 			attsTraverse = attsTraverse->next;
 		}

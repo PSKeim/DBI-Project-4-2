@@ -26,18 +26,23 @@ class QueryTreeNode {
 
 	      QueryTreeNode();
 	 	~QueryTreeNode();
+
 		void PrintInOrder();
 	      void PrintNode ();
+	      void PrintCNF();
+		void PrintFunction();
+
 	      string GetTypeName ();
 	      QueryNodeType GetType ();
 		
-	      void PrintCNF();
+
 		//Used for JOIN
 		void GenerateSchema();
 		//Used for SUM
 		void GenerateFunction();
 		//Used for GROUP_BY
 		void GenerateOM(int numAtts, vector<int> whichAtts, vector<int> whichTypes);
+		
 
 // private:
 

@@ -201,7 +201,7 @@ void Function :: GrowFromParseTree (struct FuncOperator *parseTree, Schema &mySc
 }
 
 void Function :: Print () {
-
+	clog << "PRINT FUNCTION HAS NOT BEEN IMPLEMENTED YET. WORKING ON IT, D00D" << endl;
 }
 
 Type Function :: Apply (Record &toMe, int &intResult, double &doubleResult) {

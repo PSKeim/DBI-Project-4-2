@@ -11,6 +11,7 @@
 #include <vector>
 
 using std::vector;
+using std::string;
 
 struct att_pair {
 	char *name;
