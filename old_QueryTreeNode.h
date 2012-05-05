@@ -1,10 +1,7 @@
 #ifndef QUERY_TREE_NODE_H
 #define QUERY_TREE_NODE_H
 
-#define P_SIZE 100
-
 #include "Schema.h"
-#include "Record.h"
 #include "Function.h"
 #include "Comparison.h"
 #include "RelOp.h"
@@ -65,9 +62,6 @@ class QueryTreeNode {
 
 		void SetType(QueryNodeType setter);
 
-		void Run();
-		void WaitUntilDone();
-
 	      string GetTypeName ();
 	      QueryNodeType GetType ();
 		
@@ -85,13 +79,11 @@ class QueryTreeNode {
 		// For a PROJECT
 		int numAttsIn;
 		int numAttsOut;
-		vector<int> aTK;
 	  	int *attsToKeep;
 	  	int numAttsToKeep;
 		//NameList *projectAtts;
 		// For various operations
 	      AndList *cnf;
-	      CNF *opCNF;
 	      Schema *schema;
 		// For GROUP BY
 	      OrderMaker *order;

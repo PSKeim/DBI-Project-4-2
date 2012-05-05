@@ -17,7 +17,7 @@ RelationStats::RelationStats () : numRows(){
   numRows = 0;
 }
 
-RelationStats::RelationStats (double _numRows) : numRows(_numRows){
+RelationStats::RelationStats (int _numRows) : numRows(_numRows){
 
 }
 
@@ -25,7 +25,7 @@ RelationStats::~RelationStats () {
   attributes.clear();
 }
 
-void RelationStats::UpdateRowCount (double _numRows){
+void RelationStats::UpdateRowCount (int _numRows){
   numRows = _numRows;
 }
 
@@ -138,7 +138,7 @@ int RelationStats::operator[] (string attr){
 
 }
 
-double RelationStats::GetNumRows (){
+int RelationStats::GetNumRows (){
   return numRows;
 }
 

@@ -2,16 +2,6 @@
 #include "Function.h"
 #include "Comparison.h"
 #include "QueryTreeNode.h"
-
-#include "SelectFile.h"
-#include "SelectPipe.h"
-#include "Join.h"
-#include "GroupBy.h"
-#include "Project.h"
-#include "Sum.h"
-#include "DuplicateRemoval.h"
-#include "WriteOut.h"
-
 #include <iostream>
 #include <vector>
 
@@ -36,7 +26,6 @@ QueryTreeNode::QueryTreeNode(){
   numAttsToKeep = NULL;
 
   cnf = NULL;
-  opCNF = NULL;
   schema = NULL;
   order = NULL;
   funcOp = NULL;
@@ -62,160 +51,48 @@ QueryTreeNode::~QueryTreeNode(){
 }
 
 
-QueryNodeType QueryTreeNode::GetType(){
+QueryNodeType 	QueryTreeNode::GetType(){
   return type;
 }
 
 void QueryTreeNode::SetType(QueryNodeType setter){
-
 	type = setter;
-
-	/*outPipe = new Pipe(P_SIZE);
 
 	switch (type){
 
 	    case SELECTF:
 		//string form = lookupKey(path);
-		db = new DBFile();
 		
-		db->Open((char*)(path.c_str()));
-
-		sf = new SelectFile();
 	      break;
 
 	    case SELECTP:
-
-		sp = new SelectPipe();
 
 	      break;
 
 	    case PROJECT:
 
-		p = new Project();
-
-		attsToKeep = new int[aTK.size()]; //Need to set this to the, well, indicies of the attributes we're keeping
-
 	      break;
 
 	    case JOIN:
-
-	      j = new Join();
-
-	      lInputPipe = new Pipe(P_SIZE);
-	      rInputPipe = new Pipe(P_SIZE);
 
 	      break;
 
 	    case SUM:
 
-	      s = new Sum();
-
-	      lInputPipe = new Pipe(P_SIZE);
-
 	      break;
 
 	    case GROUP_BY:
 
-	      gb = new GroupBy();
-
-	      lInputPipe = new Pipe(P_SIZE);
-
 	      break;
 
 	    case DISTINCT:
-
-	      d = new DuplicateRemoval();
-
-	      lInputPipe = new Pipe(P_SIZE);
 
 	      break;
 
 	    case WRITE:
 
 	      break;
-	  } // end switch*/
-}
-
-/*
-
-RUN FUNCTION
-
-*/
-
-void QueryTreeNode::Run(){
-
-	switch (type){
-
-		    case SELECTF:
-			//sf->Run(db, outPipe, cnf, NULL);
-		      break;
-
-		    case SELECTP:
-			//sp->Run(lInputPipe, outPipe, cnf, NULL);
-		      break;
-
-		    case PROJECT:
-
-		      break;
-
-		    case JOIN:
-
-		      break;
-
-		    case SUM:
-
-		      break;
-
-		    case GROUP_BY:
-
-		      break;
-
-		    case DISTINCT:
-
-		      break;
-
-		    case WRITE:
-
-		      break;
-		  } // end switch
-
-}
-
-void QueryTreeNode::WaitUntilDone(){
-	switch (type){
-
-		    case SELECTF:
-			sf->WaitUntilDone();
-		      break;
-
-		    case SELECTP:
-			sp->WaitUntilDone();
-		      break;
-
-		    case PROJECT:
-
-		      break;
-
-		    case JOIN:
-
-		      break;
-
-		    case SUM:
-
-		      break;
-
-		    case GROUP_BY:
-
-		      break;
-
-		    case DISTINCT:
-
-		      break;
-
-		    case WRITE:
-
-		      break;
-	} // end switch
+	  } // end switch
 }
 
 

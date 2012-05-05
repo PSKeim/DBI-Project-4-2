@@ -29,7 +29,6 @@ public:
 	int operator() (char *relation, char *attribute);
 
 	void AddRel (char *relName, int numTuples);
-	void AddRel (char *relName, double numTuples);
 	void AddAtt (char *relName, char *attName, int numDistincts);
 	void CopyRel (char *oldName, char *newName);
 	

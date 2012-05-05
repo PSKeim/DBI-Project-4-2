@@ -18,11 +18,11 @@ class RelationStats {
  public:
 
 	  RelationStats ();
-	  RelationStats (double _numRows);
+	  RelationStats (int _numRows);
 	  ~RelationStats ();
 
 	    // Update the number of rows represented by the relation
-	  void UpdateRowCount (double _numRows);
+	  void UpdateRowCount (int _numRows);
 	    // Add/update the attribute with the number of distinct values
 	  void AddAttribute (string attr, int numDistinct);
 
@@ -36,12 +36,12 @@ class RelationStats {
 	    // if it does exist.
 	  int operator[] (string attr);
 
-	  double GetNumRows ();
+	  int GetNumRows ();
 
 
  private:
 
-	  double numRows;
+	  int numRows;
 	  map<string,int> attributes;
 
 };

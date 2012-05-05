@@ -25,6 +25,8 @@ extern int distinctAtts; // 1 if there is a DISTINCT in a non-aggregate query
 extern int distinctFunc;// 1 if there is a DISTINCT in an aggregate query
 
 
+
+
 void GetTables(vector<string> &relations){
 
   TableList *list = tables;
@@ -73,7 +75,7 @@ void GetJoinsAndSelects(vector<AndList> &joins, vector<AndList> &selects, vector
 	else{
 		//Otherwise, this might be a (a.b = c OR d.e = f) situation
 		vector<string> involvedTables;
-		//cout << "Potential multiple tables involved!" << endl;
+		//clog << "Potential multiple tables involved!" << endl;
 		
 		while(curOr != 0){
 			Operand *op = curOr->left->left;
@@ -82,7 +84,7 @@ void GetJoinsAndSelects(vector<AndList> &joins, vector<AndList> &selects, vector
 			}
 			string rel;
 			s.ParseRelation(op, rel);
-			//cout << "Parsed out relation " << rel << endl;
+			//clog << "Parsed out relation " << rel << endl;
 			if(involvedTables.size() == 0){
 				involvedTables.push_back(rel);
 			}
@@ -112,24 +114,190 @@ void GetJoinsAndSelects(vector<AndList> &joins, vector<AndList> &selects, vector
 
 } // end GetJoinsAndSelect
 
+/**
 
-void optimizeJoinOrder(vector<AndList*> joins, Statistics s){
+For now, we're doing a simple leftist-tree optimization, starting with the smallest set, and building up
+Alternative would be either using the DP solution (we're in a hurry here, let's get something working first!)
+Or using the bushy-tree solution
+
+**/
+vector<AndList> optimizeJoinOrder(vector<AndList> joins,  Statistics *s){
 
 	vector<AndList> newOrder;
-	//What is an optimized join order?
-	// For now, we're going to say it's the joining of the smallest tables first, followed by including the next smallest table possible to join
+	newOrder.reserve(joins.size());
+	AndList join;
 
+	double smallest = -1.0;
+	double guess = 0.0;
+
+	string rel1;
+	string rel2;
+	int i = 0;
+	int smallestIndex = 0;
+	int count = 0;
+	vector<string> joinedRels;
+
+/*
+testing thingy:
+
+SELECT c.c_name 
+FROM customer AS c, nation AS n, region AS r 
+WHERE (c.c_nationkey = n.n_nationkey) AND
+	  (n.n_regionkey = r.r_regionkey)
+
+SELECT l.l_tax
+FROM lineitem AS l, orders AS o, part AS p
+WHERE (l.l_orderkey = o.o_orderkey) AND (p.p_partkey = l.l_partkey)
+*/
 	
+	//Okay, we're going to repeat ourselves until joins.size = 1 (because then we know what the largest join is
+	//clog << "Joins size is " << joins.size() << endl;
+	while(joins.size() > 1){
+		//clog << "ENTERING WHILE LOOP" << endl;
+		while(i < joins.size()){
+			//cout << "Iterating over " << joins.size() << " joins" << endl;
+			join = joins[i];
 
+			s->ParseRelation(join.left->left->left, rel1);
+			s->ParseRelation(join.left->left->right, rel2);	
+			//clog << "Rel1 is " << rel1 << " Rel2 is " << (char*)rel2.c_str() << endl;
+			if(smallest == -1.0){
+				char* rels[] = {(char*)rel1.c_str(), (char*)rel2.c_str()};
+				smallest = s->Estimate(&join, rels, 2);
+				//clog << "Smallest estimate is starting at " << smallest << " tuples" << endl;
+				smallestIndex = i;
+			}
+			else{
+				char* rels[] = {(char*)rel1.c_str(), (char*)rel2.c_str()};
+				guess = s->Estimate(&join, rels, 2);
+				if(guess < smallest){
+					smallest = guess;
+					//clog << "Smallest estimate is now " << smallest << " tuples" << endl;
+					smallestIndex = i;
+				}
+			}
+			//clog << "Incrementing i" << endl;
+			i++;
+		}
+		//clog << "Exited the loop" << endl;
+		//clog << "SMALLEST POSSIBLE JOIN WAS FOUND TO HAVE " << smallest << " RECORDS AS A UNION BETWEEN " << rel1 << " AND " << rel2 << endl;
+		joinedRels.push_back(rel1);
+		joinedRels.push_back(rel2);
+		newOrder.push_back(joins[smallestIndex]);
+		count++;
+		smallest = -1.0;
+		i = 0;
+		joins.erase(joins.begin()+smallestIndex);
+	}
+	
+	//When joins is size 1, the last one in it must be the largest join, so we just have to do:
+
+	newOrder.insert(newOrder.begin()+count, joins[0]);
+	//clog << "NewOrder size is " << newOrder.size() << endl;
+
+	return newOrder;
 }
 
+/*
+void initStatistics(Statistics s){
+	char *relName[] = {"region", "nation", "part", "supplier", "partsupp", "customer", "orders", "lineitem"};
 
+	//region block
+	s.AddRel(relName[0],5);
+	s.AddAtt(relName[0], "r_regionkey",5);
+	s.AddAtt(relName[0], "r_name",5);
+	s.AddAtt(relName[0], "r_comment",5);
+	
+	//nation block
+	s.AddRel(relName[1], 25);
+	s.AddAtt(relName[1], "n_nationkey",25);
+	s.AddAtt(relName[1], "n_name",25);
+	s.AddAtt(relName[1], "n_regionkey",5);
+	s.AddAtt(relName[1], "n_comment",25);
+
+	//part block
+	s.AddRel(relName[2], 200000);
+	s.AddAtt(relName[2], "p_partkey",200000);
+	s.AddAtt(relName[2], "p_name",199996);
+	s.AddAtt(relName[2], "p_mfgr",5);
+	s.AddAtt(relName[2], "p_brand",25);
+	s.AddAtt(relName[2], "p_type",150);
+	s.AddAtt(relName[2], "p_size",50);
+	s.AddAtt(relName[2], "p_container",40);
+	s.AddAtt(relName[2], "p_retailprice",20899);
+	s.AddAtt(relName[2], "p_comment",127459);
+	
+	//supplier block
+	s.AddRel(relName[3], 10000);
+	s.AddAtt(relName[3], "s_suppkey",10000);
+		s.AddAtt(relName[3], "s_name",10000);
+		s.AddAtt(relName[3], "s_address",10000);
+		s.AddAtt(relName[3], "s_nationkey",25);
+		s.AddAtt(relName[3], "s_phone",10000);
+		s.AddAtt(relName[3], "s_acctbal",9955);
+		s.AddAtt(relName[3], "s_comment",10000);
+	
+	//partsupp block
+	s.AddRel(relName[4], 800000);
+	s.AddAtt(relName[4], "ps_partkey",200000);
+		s.AddAtt(relName[4], "ps_suppkey",10000);
+		s.AddAtt(relName[4], "ps_availqty",9999);
+		s.AddAtt(relName[4], "ps_supplycost",99865);
+		s.AddAtt(relName[4], "ps_comment",799123);
+
+	//customer block 150000
+
+	s.AddRel(relName[5], 150000);
+	s.AddAtt(relName[5], "c_custkey",150000);
+		s.AddAtt(relName[5], "c_name",150000);
+		s.AddAtt(relName[5], "c_address",150000);
+		s.AddAtt(relName[5], "c_nationkey",25);
+		s.AddAtt(relName[5], "c_phone",150000);
+		s.AddAtt(relName[5], "c_acctbal",140187);
+		s.AddAtt(relName[5], "c_mktsegment",5);
+		s.AddAtt(relName[5], "c_comment",149965);
+	
+	//orders block 	1500000
+	s.AddRel(relName[6], 1500000);
+	s.AddAtt(relName[6], "o_orderkey",1500000);
+		s.AddAtt(relName[6], "o_custkey",99996);
+		s.AddAtt(relName[6], "o_orderstatus",3);
+		s.AddAtt(relName[6], "o_totalprice",1464556);
+		s.AddAtt(relName[6], "o_orderdate",2406);
+		s.AddAtt(relName[6], "o_orderpriority",5);
+		s.AddAtt(relName[6], "o_clerk",1000);
+		s.AddAtt(relName[6], "o_shippriority",1);
+		s.AddAtt(relName[6], "o_comment",1478684);
+	
+	//lineitem block 6001215
+	s.AddRel(relName[7], 6001215);
+	s.AddAtt(relName[7], "l_orderkey",1500000);
+	s.AddAtt(relName[7], "l_partkey",200000);
+	s.AddAtt(relName[7], "l_suppkey",10000);
+	s.AddAtt(relName[7], "l_linenumber",7);
+	s.AddAtt(relName[7], "l_quantity",50);
+	s.AddAtt(relName[7], "l_extendedprice",933900);
+	s.AddAtt(relName[7], "l_discount",11);
+	s.AddAtt(relName[7], "l_tax",9);
+	s.AddAtt(relName[7], "l_returnflag",3);
+	s.AddAtt(relName[7], "l_linestatus",2);
+	s.AddAtt(relName[7], "l_shipdate",2526);
+	s.AddAtt(relName[7], "l_commitdate",2466);
+	s.AddAtt(relName[7], "l_receiptdate",2554);
+	s.AddAtt(relName[7], "l_shipinstruct",4);
+	s.AddAtt(relName[7], "l_shipmode",7);
+	s.AddAtt(relName[7], "l_comment",4501941);
+}
+
+*/
 int main () {
 
 	int pipeID = 1;
 
-	Statistics s;
-	s.Read("tcp-h_Statistics.txt");
+	Statistics *s = new Statistics();
+	s->Read("tcp-h_Statistics.txt");
+	//initStatistics(s);
+	//clog << "Statistics has supposedly read in something. Maybe." << endl;
 
 	clog << "Welcome to KA Database System" << endl;
 	clog << "*****************************" << endl;
@@ -149,7 +317,7 @@ int main () {
 	  // Get the table names from the query
         GetTables(relations);
 
-	GetJoinsAndSelects(joins, selects, joinDepSels, s);
+	GetJoinsAndSelects(joins, selects, joinDepSels, *s);
 
 	clog << endl << "Number of selects: " << selects.size() << endl;
 	clog << "Number of joins: " << joins.size() << endl;
@@ -178,6 +346,8 @@ int main () {
 	while(iterTable != 0){
 		if(iterTable->aliasAs != 0){
 			leafs.insert(std::pair<string,QueryTreeNode*>(iterTable->aliasAs, new QueryTreeNode()));
+			s->CopyRel(iterTable->tableName, iterTable->aliasAs);
+			//clog << "Copied statistics object from " << iterTable->tableName << " to " << iterTable->aliasAs << endl;
 	//		clog << "Node generated for " << iterTable->aliasAs << endl;
 		}
 		else{
@@ -186,19 +356,25 @@ int main () {
 		}
 		//Here we need to insert code that makes insert into a "Select File" type node
 		//and deals with the relevant information
-		
+
 		insert = leafs[iterTable->aliasAs];
 
 		//customization of the node
-		insert->type = SELECTF;
 		insert->schema = new Schema ("catalog", iterTable->tableName);
 		if(iterTable->aliasAs != 0){
 			insert->schema->updateName(string(iterTable->aliasAs));
 		}
 
-		topNode = insert;
 
+		topNode = insert;
 		insert->outPipeID = pipeID++;
+		string base (iterTable->tableName);
+		string path ("bin/"+base+".bin");
+
+		insert->path = strdup(path.c_str());
+
+		insert->SetType(SELECTF);
+
 		//insert->PrintNode();
 		iterTable = iterTable->next;	
 	}
@@ -214,15 +390,15 @@ int main () {
 	//clog << "Generating S nodes" << endl;
 	for(unsigned i = 0; i < selects.size(); i++){
 		selectIter = selects[i];
-	//	cout << "Is the problem before this?" << endl;
+	//	clog << "Is the problem before this?" << endl;
 		if(selectIter.left->left->left->code == NAME){
-			s.ParseRelation(selectIter.left->left->left, table);
+			s->ParseRelation(selectIter.left->left->left, table);
 		}
 		else{
-			s.ParseRelation(selectIter.left->left->right, table);
+			s->ParseRelation(selectIter.left->left->right, table);
 		}
 
-	//	clog << "Select on " << table << endl;
+		clog << "Select on " << table << endl;
 		
 		traverse = leafs[table]; //Get the root node (Select File)
 		projectStart = table;
@@ -230,8 +406,8 @@ int main () {
 			traverse = traverse->parent;
 		}
 		insert = new QueryTreeNode();
-	//	clog << "Select node on " << attribute << " generated." << endl;
-	//	clog << "Selection was on " << selectIter.left->left->left->value << "." << endl;
+		//clog << "Select node on " << attribute << " generated." << endl;
+		//clog << "Selection was on " << selectIter.left->left->left->value << "." << endl;
 		/*
 		 insert customization here
 		 Traverse's new parent is insert
@@ -253,13 +429,17 @@ int main () {
 		//Because we made a selection, this may impact our decision on which tables to choose first for the join order
 		//So we should update the statistics object to reflect the change
 		char *statApply = strdup(table.c_str());
-		s.Apply(&selectIter, &statApply,1);
+		//clog << "Applying select to the statistics object" << endl;
+		//clog << "Should result in "<< s->Estimate(&selectIter, &statApply,1) << " tuples in " << table << endl;
+		s->Apply(&selectIter, &statApply,1);
+		//clog << "Applying second select to test" << endl;
+		//clog << "Should result in "<< s->Estimate(&selectIter, &statApply,1) << " tuples in " << table << endl; //testing to see if apply was actually applied
 
 		topNode = insert;
 		//clog << "CNF has been created." << endl;
 	//	insert->PrintNode();
 	}
-
+//	assert(0==1);
 	//clog << "Done generating S Nodes" << endl;
 	
 	/*
@@ -271,16 +451,20 @@ int main () {
 	
 	//Function that optimizes join stuff here
 	
-	//optimizeJoinOrder(joins, s);
 
+	if(joins.size() > 1){
+		joins = optimizeJoinOrder(joins, s);
+	}
+	
+	//assert(0==1);
 	//Now we have to add the joins to the tree
 	QueryTreeNode *lTableNode;
 	QueryTreeNode *rTableNode;
 	AndList curJoin;
 	string rel1;
 	string rel2;
-	//clog << "Generating Join nodes" << endl;
 	for(unsigned i = 0; i < joins.size(); i++){
+		//clog << "Generating Join nodes" << endl;
 		curJoin = joins[i];
 		//Okay, what do we need to know?
 		//We need to know the two relations involved
@@ -288,10 +472,10 @@ int main () {
 		//So curJoin->left->left->left->value
 		// and curJoin->left->left->right->value
 		rel1 = "";//curJoin.left->left->left->value;
-		s.ParseRelation(curJoin.left->left->left, rel1);
+		s->ParseRelation(curJoin.left->left->left, rel1);
 		rel2 = "";//curJoin.left->left->right->value;
-		s.ParseRelation(curJoin.left->left->right, rel2);
-		clog << "Join on " << rel1 << " and " << rel2 << "."<<endl;
+		s->ParseRelation(curJoin.left->left->right, rel2);
+		//clog << "Join on " << rel1 << " and " << rel2 << "."<<endl;
 		table = rel1; //done for testing purposes. will remove later
 		
 		//So, now we can get the top nodes for each of these
@@ -309,7 +493,7 @@ int main () {
 		insert->lChildPipeID = lTableNode->outPipeID;
 		insert->rChildPipeID = rTableNode->outPipeID;
 		insert->outPipeID = pipeID++;
-		insert->cnf = &curJoin;
+		insert->cnf = &joins[i];
 
 		insert->left = lTableNode;
 		insert->right = rTableNode;
@@ -322,9 +506,12 @@ int main () {
 		insert->GenerateSchema();
 
 	//	clog << "Schema generated, now attemping to print the node." << endl;		
-	//	insert->PrintNode();
+		//insert->PrintNode();
 		topNode = insert;	
 	}
+
+	//clog << "Printing an in-order of pre join-dep-sels and such tree" << endl;
+	
 	
 //	clog << "Done generating join nodes" << endl;
 
@@ -432,15 +619,6 @@ int main () {
 	
 			//Group By customization
 			insert->order = new OrderMaker();	
-			/*
-					char *str_sum = "(ps_supplycost)";
-					get_cnf (str_sum, &join_sch, func);
-					func.Print ();
-					OrderMaker grp_order;
-					grp_order.numAtts = 1;
-					grp_order.whichAtts[0] = 3;
-					grp_order.whichTypes[0] = Int;
-			*/
 
 			int numAttsToGroup = 0;
 			vector<int> attsToGroup;
@@ -461,7 +639,6 @@ int main () {
 			insert->GenerateOM(numAttsToGroup, attsToGroup, whichType);
 			insert->funcOp = finalFunction;
 			insert->GenerateFunction();
-			topNode = insert;
 			clog << "Done generating Group By" << endl;
 		}
 
@@ -513,40 +690,16 @@ int main () {
 		insert->lChildPipeID = traverse->outPipeID;
 		insert->outPipeID = pipeID++;
 		//insert->projectAtts = attsToSelect;
-		//Problem here: How to deal with the schema?
-		//We have a NameList that lists the attributes that we want to keep
-		//We have to somewhow translate that into something that we can create a schema from
-		//Okay, so I have to figure out the indicies that correspond to the attributes I want to keep (from the NameList)
-		//My Schema has the myAtts list/vector thingy that keeps track of the names
-		//So what can we do? hm
 
 		vector<int> indexOfAttsToKeep; //Keeps the indicies that we'll be keeping
 		Schema *oldSchema = traverse->schema;
 		NameList *attsTraverse = attsToSelect;
 		string attribute;
-		
 
 		while(attsTraverse != 0){
 			//clog << "Atts traverse provided " << attsTraverse->name << endl;
 			//indexOfAttsToKeep.push_back(botSchema.find(attsTraverse->name))
 			attribute = attsTraverse-> name;
-		/*	{//Stripped down version of "Parse Relation & Attribute" from Statistics
-				int i = 0;
-				while (attribute[i] != '_'){
-
-				      if (attribute[i] == '.'){
-					break;
-				      }
-				      i++;
-				}
-
-				if (attribute[i] == '.'){
-				      attribute = attribute.substr(i+1);
-				}
-			}
-			//clog << "After conversion, attribute is " << attribute << endl;
-			indexOfAttsToKeep.push_back(oldSchema->Find(const_cast<char*>(attribute.c_str())));
-		*/
 			//clog << "*************Looking for attribute " << attribute << endl;
 			indexOfAttsToKeep.push_back(oldSchema->Find(const_cast<char*>(attribute.c_str())));
 			attsTraverse = attsTraverse->next;
@@ -554,7 +707,10 @@ int main () {
 
 		//At the end of this, we've found the indicies of the attributes we want to keep from the old schema
 		Schema *newSchema = new Schema(oldSchema, indexOfAttsToKeep);
-		insert->schema = newSchema;		
+		insert->schema = newSchema;
+		clog << "Schema is inserted into insert, and is " << insert->schema << endl;
+		
+		insert->schema->Print();
 	}
 	//	clog << "DONE WITH PROJECT NODE" << endl;
 

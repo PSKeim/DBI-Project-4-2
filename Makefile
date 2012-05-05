@@ -28,8 +28,8 @@ a41.out: Record.o Comparison.o ComparisonEngine.o Schema.o File.o BigQ.o DBFile.
 a41test.out: Record.o Comparison.o ComparisonEngine.o Schema.o File.o BigQ.o DBFile.o InternalDB.o HeapDB.o SortedDB.o Pipe.o Statistics.o RelationStatistics.o y.tab.o lex.yy.o a41test.o
 	$(CC) -o a41test.out Record.o Comparison.o ComparisonEngine.o Schema.o File.o BigQ.o DBFile.o InternalDB.o HeapDB.o SortedDB.o Pipe.o Statistics.o RelationStatistics.o y.tab.o lex.yy.o a41test.o -lfl -lpthread -lrt
 
-main.out:   y.tab.o lex.yy.o main.o Statistics.o RelationStatistics.o QueryTreeNode.o Record.o Comparison.o ComparisonEngine.o Schema.o File.o BigQ.o DBFile.o InternalDB.o HeapDB.o SortedDB.o Pipe.o Function.o
-	$(CC) -o main.out y.tab.o lex.yy.o main.o Statistics.o RelationStatistics.o QueryTreeNode.o Record.o Comparison.o ComparisonEngine.o Schema.o File.o BigQ.o DBFile.o InternalDB.o HeapDB.o SortedDB.o Pipe.o Function.o -lfl -lpthread -lrt
+main.out:   y.tab.o lex.yy.o main.o Statistics.o RelationStatistics.o QueryTreeNode.o Record.o Comparison.o ComparisonEngine.o Schema.o File.o BigQ.o DBFile.o InternalDB.o HeapDB.o SortedDB.o Pipe.o Function.o RelOp.o SelectFile.o SelectPipe.o WriteOut.o Project.o DuplicateRemoval.o Sum.o GroupBy.o Join.o
+	$(CC) -o main.out y.tab.o lex.yy.o main.o Statistics.o RelationStatistics.o QueryTreeNode.o Record.o Comparison.o ComparisonEngine.o Schema.o File.o BigQ.o DBFile.o InternalDB.o HeapDB.o SortedDB.o Pipe.o Function.o RelOp.o SelectFile.o SelectPipe.o WriteOut.o Project.o DuplicateRemoval.o Sum.o GroupBy.o Join.o -lfl -lpthread -lrt
 
 a1.o: a1.cc a1.h
 	$(CC) -g -c a1.cc

@@ -66,26 +66,6 @@ void Statistics::AddRel(char *relName, int numTuples) {
   string relation(relName);
 
   if (Exists(relation)){
-    relations[relation].UpdateRowCount((double)numTuples);
-  }
-  else {
-
-    RelationStats stats((double) numTuples);
-    RelationSet set(relation);
-
-    relations[relation] = stats;
-    sets.push_back(set);
-    relSets[relation] = set;
-
-  }
-
-}
-
-void Statistics::AddRel(char *relName, double numTuples) {
-
-  string relation(relName);
-
-  if (Exists(relation)){
     relations[relation].UpdateRowCount(numTuples);
   }
   else {
@@ -273,7 +253,7 @@ void Statistics::Apply(struct AndList *parseTree,
 
     // Create a new RelationSet represented by relNames
   for (int i = 0; i < numToJoin; i++){
-   	//cout << "APPLY IS LOOKING AT " << relNames[i] << " IN THIS LOOP THINGY" << endl;
+   	cout << "APPLY IS LOOKING AT " << relNames[i] << " IN THIS LOOP THINGY" << endl;
 	 set.AddRelationToSet(relNames[i]);
   }
 
@@ -282,8 +262,9 @@ void Statistics::Apply(struct AndList *parseTree,
 
     // Run the estimation. We don't care about the value!
   double estimate = Guess(parseTree, set, indexes, joinEstimate);
+	
+  cout << "APPLY ESTIMATED " << estimate << endl;
 
-  
   int index = 0;
   int oldSize = sets.size();
   int newSize = oldSize - (int) indexes.size() + 1;
@@ -293,44 +274,45 @@ void Statistics::Apply(struct AndList *parseTree,
   if (indexes.size() > 1){
 
 
-      // Only copy over sets not spanned by set
-    for (int i = 0; i < oldSize; i++){
-      if (i == indexes[index]){
-	index++;
-      }
-      else {
-	copy.push_back(sets[i]);
-      }
-    } // end for int i
+	      // Only copy over sets not spanned by set
+	    for (int i = 0; i < oldSize; i++){
+	      if (i == indexes[index]){
+		index++;
+	      }
+	      else {
+		copy.push_back(sets[i]);
+	      }
+	    } // end for int i
 
-      // Clear the global sets list
-    sets.clear();
+	      // Clear the global sets list
+	    sets.clear();
 
-      // Perform the copy
-    for (int i = 0; i < newSize-1; i++){
-      sets.push_back(copy[i]);
-    }
+	      // Perform the copy
+	    for (int i = 0; i < newSize-1; i++){
+	      sets.push_back(copy[i]);
+	    }
 
-    set.UpdateNumTuples(estimate);
-    
-	//cout << "Set updated to " << estimate << " tuples" << endl;
-	sets.push_back(set);
+	    set.UpdateNumTuples(estimate);
+	    
+	    cout << "Set updated to " << estimate << " tuples" << endl;
+		sets.push_back(set);
 
-    copy.clear();
+	    copy.clear();
 
-    vector<string> relations;
-    set.GetRelations(relations);
+	    vector<string> relations;
+	    set.GetRelations(relations);
 
-    for (int i = 0; i < set.Size(); i++){
-      relSets[relations[i]] = set;
-      AddRel((char*)relations[i].c_str(), estimate);
-	//cout << "relations[i] is " << relations[i] << endl;
-	//cout << "relSets[relations[i]] now has " << set << " tuples" << endl;
-    }
+	    for (int i = 0; i < set.Size(); i++){
+	      relSets[relations[i]] = set;
+		cout << "relations[i] is " << relations[i] << endl;
+		cout << "relSets[relations[i]] now has " << set << " tuples" << endl;
+	    }
 
   } // end if indexes.size()
-  else{
- 	AddRel(relNames[0], estimate);
+ else{
+	cout << "Set updated to " << estimate << " tuples" << endl;
+	sets.push_back(set);
+	set.UpdateNumTuples(estimate);
  }
  
  //cout << "relSEts[s] has " << relSets["s"] << endl;
@@ -347,13 +329,15 @@ double Statistics::Estimate(struct AndList *parseTree,
     // Create a RelationSet represented by relNames
   for (int i = 0; i < numToJoin; i++){
     set.AddRelationToSet(relNames[i]);
+   // cout << "Added " << relNames[i] << " to relation set" << endl;
   }
 
   double joinEstimate = 0.0;
   joinEstimate = ParseJoin(parseTree);
-  //cout << "Join Estimate is " << joinEstimate << endl;
+//  cout << "Join Estimate is " << joinEstimate << endl;
     // Get the estimate
   estimate = Guess(parseTree, set, indexes, joinEstimate);
+ // cout << "Guess returns " << estimate << endl;
   return estimate;
 
 }
@@ -372,7 +356,7 @@ double Statistics::Guess(struct AndList *parseTree, RelationSet toEstimate,
 */
     // If the given set can be found in the existing sets, create an estimate
   if (CheckSets(toEstimate, indexes)) {
-  // cout << "GENERATING ESTIMATE" << endl;
+  // cout << "GENERATING ESTIMATE IN GUESS" << endl;
     estimate = GenerateEstimate(parseTree, joinEstimate);
   }
 
@@ -382,19 +366,20 @@ double Statistics::Guess(struct AndList *parseTree, RelationSet toEstimate,
 
 bool Statistics::CheckSets(RelationSet toEstimate, vector<int> &indexes){
 
+ // cout << "Checkin' the sets " << endl;
   int numRelations = 0;
   
   int intersect = 0;
   int index = 0;
 
   int size = (int) sets.size();
-
+ // cout << "Size of sets is " << size << endl;
     // Iterate through all the sets
   for (; index < size; index++){
 
       // Compute the intersect value
     intersect = sets[index].Intersect(toEstimate);
-
+  //  cout << "Intersect testing, one two three: " << intersect << endl;
       // If the computation returned -1, stop - the join is not feasible
     if (intersect == -1){
       indexes.clear();
@@ -504,7 +489,7 @@ double Statistics::ParseJoin(struct AndList *parseTree){
 
   double value = 0.0;
   double dummy = 0.0;
-
+//	cout << "PARSING DAT JOIN " << endl;
   if (parseTree){
 
     struct AndList *curAnd = parseTree;
@@ -534,7 +519,9 @@ double Statistics::ParseJoin(struct AndList *parseTree){
 	      // Get the relation names and the attributes
 	    ParseRelationAndAttribute(curOp->left, relation1, attribute1);
 	    ParseRelationAndAttribute(curOp->right, relation2, attribute2);
-
+		//cout << "Relation 1 was found to be " << relation1 << endl;
+		//cout << "Relation 2 was found to be " << relation2 << endl;
+	
 	      // Get the relevant statistics
 	    r1 = relations[relation1];
 	    r2 = relations[relation2];
@@ -565,7 +552,7 @@ double Statistics::ParseJoin(struct AndList *parseTree){
 
   } // end if parseTree
 
-  //cout << "Estimate Join returning " << value << endl;
+ // cout << "Estimate Join returning " << value << endl;
   return value;
 
 }
@@ -574,6 +561,7 @@ double Statistics::GenerateEstimate(struct AndList *parseTree, double joinEstima
 	double estimate = 1.0; //Final estimation storage variable
 	if(joinEstimate > 0){
 		estimate = joinEstimate;
+	//	cout << "Estimate is set to " << estimate << endl;
 	}
 	//Traversal Variables
 	struct AndList *curAnd = parseTree;
@@ -727,7 +715,7 @@ double Statistics::GenerateEstimate(struct AndList *parseTree, double joinEstima
 		estimate = numTups * estimate;
 		//cout << "ESTIMATE IS " << estimate << endl;
 	}
-	
+	//cout << "Estimate is returning " << estimate;
 	return estimate;
 }
 
